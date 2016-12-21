@@ -1,0 +1,18 @@
+plugins {
+	id 'com.company.base'
+}
+
+task verifyJvmParams {
+	doLast {
+		def dontResolveFromArtifactory = System.properties['company.gradle.artifactory.dontResolvePluginsFromArtifactory']
+		def skipUpdateCheck = System.properties['company.gradle.skipUpdateCheck']
+		 
+		if (!dontResolveFromArtifactory || (dontResolveFromArtifactory != 'true')) {
+			throw new GradleException("Expected system property company.gradle.artifactory.dontResolvePluginsFromArtifactory == true, but was $dontResolveFromArtifactory")
+		}
+		
+		if (!skipUpdateCheck || (skipUpdateCheck != 'true')) {
+			throw new GradleException("Expected system property company.gradle.skipUpdateCheck == true, but was $skipUpdateCheck")
+		}
+	}
+}

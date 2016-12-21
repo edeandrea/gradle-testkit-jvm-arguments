@@ -1,0 +1,60 @@
+rootProject {
+	ext {
+		// This tells that the build was executed from the full company Gradle distro rather than simply wiring in some plugins in an app's build file
+		fullBuildSystemUsed = true
+	}
+
+	if (!Boolean.getBoolean('company.gradle.artifactory.dontResolvePluginsFromArtifactory')) {
+		buildscript {
+			def artifactoryBaseUrl = System.properties['company.gradle.artifactory.baseUrl'] ?: '@ARTIFACTORY_BASE_URL@'
+			def artifactoryResolveRepo = System.properties['company.gradle.artifactory.resolveRepo'] ?: '@ARTIFACTORY_RESOLVE_REPO@'
+			def artifactVersion = System.properties['company.gradle.version'] ?: '@VERSION@'
+
+			repositories {
+				maven {
+					url "$artifactoryBaseUrl/$artifactoryResolveRepo"
+				}
+			}
+
+			dependencies {
+				classpath "@GROUP_ID@:@ARTIFACT_ID@:$artifactVersion"
+			}
+		}
+	}
+}
+
+println "company.gradle.artifactory.dontResolvePluginsFromArtifactory = ${System.properties['company.gradle.artifactory.dontResolvePluginsFromArtifactory']}"
+println "company.gradle.skipUpdateCheck = ${System.properties['company.gradle.skipUpdateCheck']}"
+
+if (!Boolean.getBoolean('company.gradle.artifactory.dontResolvePluginsFromArtifactory')) {
+	initscript {
+		def artifactoryBaseUrl = System.properties['company.gradle.artifactory.baseUrl'] ?: '@ARTIFACTORY_BASE_URL@'
+		def artifactoryResolveRepo = System.properties['company.gradle.artifactory.resolveRepo'] ?: '@ARTIFACTORY_RESOLVE_REPO@'
+		def artifactVersion = System.properties['company.gradle.version'] ?: '@VERSION@'
+
+		repositories {
+			maven {
+				url "$artifactoryBaseUrl/$artifactoryResolveRepo"
+			}
+		}
+
+		dependencies {
+			classpath "@GROUP_ID@:@ARTIFACT_ID@:$artifactVersion"
+		}
+	}
+}
+
+// Using reflection here because this init script itself has to compile, and if SystemBuildListener isn't on the class path
+// (which should only happen during integration testing), then the script will fail to compile
+// This way the scipt will compile but at runtime won't be activated
+try {
+	def systemBuildListenerClass = Class.forName 'com.company.gradle.build.SystemBuildListener'
+
+	if (systemBuildListenerClass) {
+		addBuildListener systemBuildListenerClass.newInstance()
+	}
+}
+catch (ClassNotFoundException ex) {
+	// Just eat it
+	println "Got ClassNotFoundException trying to load class com.company.gradle.build.SystemBuildListener"
+}

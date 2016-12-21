@@ -1,0 +1,20 @@
+plugins {
+	id "java-gradle-plugin"
+	id 'groovy'
+}
+
+repositories {
+	jcenter()
+}
+
+dependencies {
+	testCompile('org.spockframework:spock-core:1.1-groovy-2.4-rc-3') {
+		exclude module: 'groovy-all'
+	}
+	
+	testCompile 'junit:junit:4.12'
+}
+
+task wrapper(type: Wrapper, description: 'Re-generates the wrapper scripts based on the gradle version') {
+	gradleVersion = '3.2.1'
+}

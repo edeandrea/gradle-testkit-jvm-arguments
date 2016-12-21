@@ -1,0 +1,138 @@
+plugins {
+	id 'java-gradle-plugin'
+	id 'groovy'
+	id 'jacoco'
+	id 'eclipse'
+}
+
+apply plugin: com.company.gradle.build.temp.plugin.IntegrationTestPlugin
+
+eclipseClasspath.enabled = false
+
+version = '1.0'
+archivesBaseName = 'my-gradle'
+
+repositories {
+	jcenter()
+}
+
+dependencies {
+	def jacocoVersion = '0.7.7.201606060606'
+	
+	testCompile 'junit:junit:4.12'
+	testCompile 'org.spockframework:spock-core:1.1-groovy-2.4-rc-3'
+	integTestCompile 'commons-io:commons-io:2.5'
+	jacocoAgent "org.jacoco:org.jacoco.agent:$jacocoVersion"
+	jacocoAnt "org.jacoco:org.jacoco.ant:$jacocoVersion"
+}
+
+configurations {
+	all*.exclude group: 'org.codehaus.groovy', module: 'groovy-all'
+}
+
+sourceCompatibility = 1.7
+targetCompatibility = 1.7
+
+gradlePlugin {
+	plugins {
+		base {
+			id = 'com.company.base'
+			implementationClass = 'com.company.gradle.build.plugin.BasePlugin'
+		}
+	}
+}
+
+tasks.withType(Test) {
+	// Configuration for all test tasks
+	//makes the standard streams (err and out) visible at console when running tests
+	testLogging {
+		displayGranularity -1
+		minGranularity -1
+		maxGranularity -1
+		showStandardStreams true
+		showStackTraces true
+		showExceptions true
+		showCauses true
+		exceptionFormat "full"
+		stackTraceFilters "truncate", "groovy"
+		events "passed", "failed", "skipped"
+	}
+
+	reports {
+		junitXml.outputPerTestCase = true
+	}
+
+	jacoco {
+		append = false
+	}
+}
+
+test {
+	// Configuration specific to the test task - for unit tests
+	description = 'Executes Unit Tests'
+	maxHeapSize '512m'
+	minHeapSize '128m'
+	jvmArgs '-XX:MaxPermSize=128m'
+
+	jacoco {
+		destinationFile = file("$buildDir/coverage-results/jacoco.exec")
+	}
+}
+
+integTest {
+	dependsOn 'createCustomGradleDist'
+	
+	afterEvaluate {
+		systemProperty 'initScriptLocation', "$sourceSets.main.output.resourcesDir/initScripts/company-gradle.gradle"
+		systemProperty 'gradle.user.home', "$buildDir/tmp/TestKit"
+		systemProperty 'distLocation', createCustomGradleDist.archivePath.absolutePath
+		systemProperty 'gradleVersion', gradle.gradleVersion
+	}
+}
+
+task captureBuildSystemVersion(dependsOn: 'processResources', description: 'Captures the build system version and writes it out to a file') {
+	ext.destFile = file("${sourceSets.main.output.resourcesDir}/META-INF/buildSystem.properties")
+	outputs.file destFile
+
+	doLast {
+		def buildConfig = new Properties()
+		buildConfig.setProperty 'projectName', project.name
+		buildConfig.setProperty 'pluginsVersion', project.version
+		buildConfig.setProperty 'buildDate', "${new Date().format('MM/dd/yyyy hh:mm:ss a z')}"
+		buildConfig.setProperty 'gradleVersion', gradle.gradleVersion
+
+		destFile.withWriter { writer -> buildConfig.store(writer, 'Generated at build time') }
+	}
+}
+
+processResources.finalizedBy captureBuildSystemVersion
+
+task createCustomGradleDist(type: Zip, dependsOn: 'assemble', description: 'Creates a custom Gradle distribution containing the custom plugins') {
+	baseName = project.archivesBaseName
+	classifier = 'bin'
+	
+	outputs.upToDateWhen { false }
+
+	into("my-gradle-bin") {
+		into('init.d') {
+			from("${sourceSets.main.output.resourcesDir}/initScripts") {
+				filter(org.apache.tools.ant.filters.ReplaceTokens, tokens: [
+					GROUP_ID: project.group,
+					ARTIFACT_ID: project.archivesBaseName,
+					VERSION: project.version,
+					ARTIFACTORY_BASE_URL: 'http://some.url.to.internal/artifactory',
+					ARTIFACTORY_RESOLVE_REPO: 'somereponame'
+				])
+			}
+		}
+		
+		from captureBuildSystemVersion
+		from(gradle.gradleHomeDir) {
+			exclude 'init.d/**'
+		}
+	}
+}
+
+task wrapper(type: Wrapper, description: 'Re-generates the wrapper scripts based on the gradle version') {
+	gradleVersion = '3.2.1'
+}
