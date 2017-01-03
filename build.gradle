@@ -134,5 +134,5 @@ task createCustomGradleDist(type: Zip, dependsOn: 'assemble', description: 'Crea
 }
 
 task wrapper(type: Wrapper, description: 'Re-generates the wrapper scripts based on the gradle version') {
-	gradleVersion = '3.2.1'
+	gradleVersion = '3.3'
 }
